@@ -1,7 +1,8 @@
-
 import argparse
 import json
+import os
 import re
+import sys
 from typing import Set
 import tiktoken
 from tqdm import tqdm
@@ -47,7 +48,20 @@ def main():
     parser.add_argument("--file", "-f", default="conversations.json", help="Path to ChatGPT export JSON")
     parser.add_argument("--show-cost", action="store_true", help="Show rough cost estimate (uses $/M token defaults)")
     args = parser.parse_args()
-    file_path = args.file
+    provided = any(a in ("-f", "--file") for a in sys.argv[1:])
+    if provided and args.file:
+        file_path = args.file
+    else:
+        while True:
+            file_path = input("Enter path to your exported conversations.json file : ").strip().strip('"')
+            if not file_path:
+                print("Please enter a valid file path (or press Ctrl+C to cancel).")
+                continue
+            if not os.path.exists(file_path):
+                print(f"File not found: {file_path}\nPlease try again.")
+                continue
+            break
+
     print(f"🔍 Reading {file_path} ...")
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -55,7 +69,6 @@ def main():
     if not detected_models:
         detected_models = {"gpt-4-turbo", "gpt-3.5-turbo"}
     print(f"Detected models: {', '.join(sorted(detected_models))}")
-
     tokenizers = {}
     tokenizer_warnings = {}
     for model in detected_models:
@@ -98,7 +111,6 @@ def main():
         if args.show_cost:
             rate_per_million = 5.0 if re.search(r"gpt-4", model) else 0.002 if re.search(r"3.5|gpt-3", model) else 0.0
             print(f"  Estimated cost (approx): ${stats['total_tokens'] / 1_000_000 * rate_per_million:.2f}")
-
         print("  Top 10 longest chats by tokens:")
         for i, (title, t, m) in enumerate(stats["top_chats"], 1):
             print(f"    {i}. {title[:60]} — {t:,} tokens, {m:,} messages")
